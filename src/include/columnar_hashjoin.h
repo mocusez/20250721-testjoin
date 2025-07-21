@@ -31,21 +31,30 @@ typedef void (*ProcessColumnarUnmatchedFunc)(
     int is_left
 );
 
-// 列式存储的哈希连接函数
 void columnar_hash_join(
     const ColumnarTable* left_table,
     const ColumnarTable* right_table,
-    int left_key_column,        // 左表键列索引
-    int right_key_column,       // 右表键列索引
+    int left_key_column,
+    int right_key_column,
     JoinType join_type,
     ColumnarTable* result_table,
     int* result_row_count
 );
+
+// 向量化函数声明
+void vectorized_get_keys(const ColumnarTable* table, int key_column, int* keys, int start_row, int count);
+
+// 不同策略的哈希函数
+void simple_hash_keys(int* keys, unsigned int* hashes, int count);
+void bulk_hash_keys(int* keys, unsigned int* hashes, int count);
+void aligned_hash_keys(int* keys, unsigned int* hashes, int count);
+void optimized_vectorized_hash_keys(int* keys, unsigned int* hashes, int count);
 
 // 工具函数
 ColumnarTable* create_columnar_table(int max_rows, int column_count, size_t* column_sizes);
 void free_columnar_table(ColumnarTable* table);
 void add_column_data(ColumnarTable* table, int column_idx, void* data, int row_idx);
 void* get_column_data(const ColumnarTable* table, int column_idx, int row_idx);
+int get_int_key_from_column(const ColumnarTable* table, int column_idx, int row_idx);
 
 #endif /* COLUMNAR_HASH_JOIN_H */

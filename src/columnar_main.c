@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <stdbool.h>
 
 // 列式存储的示例数据结构
 typedef struct {
@@ -111,6 +113,113 @@ void print_join_result(const ColumnarTable* result, int row_count, const char* d
     }
 }
 
+void benchmark_hash_functions() {
+    const int TEST_SIZES[] = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
+    const int NUM_TESTS = sizeof(TEST_SIZES) / sizeof(TEST_SIZES[0]);
+    const int ITERATIONS = 10000;  // 增加迭代次数以获得更准确的结果
+    
+    printf("\n=== Hash Function Performance Benchmark ===\n");
+    printf("Testing %d iterations per size\n", ITERATIONS);
+    printf("Size\tSimple\t\tBulk\t\tAligned\t\tOptimized\tBest Method\n");
+    printf("----\t------\t\t----\t\t-------\t\t---------\t-----------\n");
+    
+    for (int test = 0; test < NUM_TESTS; test++) {
+        int size = TEST_SIZES[test];
+        
+        // 分配内存并尝试对齐
+        int* keys;
+        keys = malloc(size * sizeof(int));
+        
+        unsigned int* hashes1 = malloc(size * sizeof(unsigned int));
+        unsigned int* hashes2 = malloc(size * sizeof(unsigned int));
+        unsigned int* hashes3 = malloc(size * sizeof(unsigned int));
+        unsigned int* hashes4 = malloc(size * sizeof(unsigned int));
+        
+        // 初始化测试数据 - 使用更真实的数据模式
+        srand(42);  // 固定种子确保可重复性
+        for (int i = 0; i < size; i++) {
+            keys[i] = rand() % 100000 + i;  // 混合随机和顺序模式
+        }
+        
+        // 测试1: Simple Hash (逐个处理)
+        clock_t start1 = clock();
+        for (int iter = 0; iter < ITERATIONS; iter++) {
+            simple_hash_keys(keys, hashes1, size);
+        }
+        clock_t end1 = clock();
+        double time1 = ((double)(end1 - start1)) / CLOCKS_PER_SEC * 1000; // 转换为毫秒
+        
+        // 测试2: Bulk Hash (批量处理)
+        clock_t start2 = clock();
+        for (int iter = 0; iter < ITERATIONS; iter++) {
+            bulk_hash_keys(keys, hashes2, size);
+        }
+        clock_t end2 = clock();
+        double time2 = ((double)(end2 - start2)) / CLOCKS_PER_SEC * 1000;
+        
+        // 测试3: Aligned Hash (对齐优化)
+        clock_t start3 = clock();
+        for (int iter = 0; iter < ITERATIONS; iter++) {
+            aligned_hash_keys(keys, hashes3, size);
+        }
+        clock_t end3 = clock();
+        double time3 = ((double)(end3 - start3)) / CLOCKS_PER_SEC * 1000;
+        
+        // 测试4: Optimized Hash (统一优化)
+        clock_t start4 = clock();
+        for (int iter = 0; iter < ITERATIONS; iter++) {
+            optimized_vectorized_hash_keys(keys, hashes4, size);
+        }
+        clock_t end4 = clock();
+        double time4 = ((double)(end4 - start4)) / CLOCKS_PER_SEC * 1000;
+        
+        // 验证结果一致性（检查前几个值）
+        bool results_match = true;
+        int check_count = (size < 5) ? size : 5;
+        for (int i = 0; i < check_count; i++) {
+            if (hashes1[i] != hashes2[i] || hashes1[i] != hashes3[i] || hashes1[i] != hashes4[i]) {
+                results_match = false;
+                break;
+            }
+        }
+        
+        // 找出最快的方法
+        double min_time = time1;
+        const char* best = "Simple";
+        if (time2 < min_time) { min_time = time2; best = "Bulk"; }
+        if (time3 < min_time) { min_time = time3; best = "Aligned"; }
+        if (time4 < min_time) { min_time = time4; best = "Optimized"; }
+        
+        // 计算相对性能（相对于最快方法的倍数）
+        printf("%4d\t%6.2fms\t%6.2fms\t%6.2fms\t%6.2fms\t%s", 
+               size, time1, time2, time3, time4, best);
+        
+        if (!results_match) {
+            printf(" (WARNING: Results differ!)");
+        }
+        
+        // 显示性能提升
+        if (min_time < time1) {
+            printf(" (%.1fx faster)", time1 / min_time);
+        }
+        
+        printf("\n");
+        
+        // 清理内存
+        free(keys);
+        free(hashes1);
+        free(hashes2);
+        free(hashes3);
+        free(hashes4);
+    }
+    
+    printf("\nNotes:\n");
+    printf("- Simple: 逐个处理每个键值\n");
+    printf("- Bulk: 批量计算整个数组然后分散\n");
+    printf("- Aligned: 检查内存对齐并选择策略\n");
+    printf("- Optimized: 根据数据大小智能选择最佳策略\n");
+}
+
 int main() {
     printf("=== 列式存储哈希连接示例 ===\n");
     
@@ -169,6 +278,8 @@ int main() {
     free_columnar_table(orders);
     free_columnar_table(payments);
     free_columnar_table(result);
+
+    benchmark_hash_functions();
         
     return 0;
 }
